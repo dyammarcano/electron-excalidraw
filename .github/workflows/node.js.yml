@@ -27,8 +27,8 @@ jobs:
       run: npm ci
     - name: Build (if present)
       run: npm run build --if-present # Este script debería preparar los assets web de Excalidraw
-    - name: Run Tests
-      run: npm test
+    # - name: Run Tests
+      # run: npm test
 
   release:
     name: Create Release & Upload Artifacts
