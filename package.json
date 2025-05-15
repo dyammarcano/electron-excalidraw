@@ -1,0 +1,44 @@
+{
+  "name": "electron-excalidraw",
+  "version": "1.0.0",
+  "homepage": "https://excalidraw.com",
+  "author": "Tu Nombre <tu.email@ejemplo.com>",
+  "description": "Excalidraw Desktop App",
+  "main": "main.js",
+  "keywords": [],
+  "devDependencies": {
+    "electron": "^36.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir", 
+    "dist": "electron-builder"       
+  },
+  "license": "MIT",
+  "build": {
+    "appId": "com.tuempresa.miexcalidrawelectron",
+    "productName": "Excalidraw",
+    "files": [
+      "main.js",
+      "preload.js",
+      "app/**/*"   
+    ],
+    "directories": {
+      "buildResources": "build-resources", 
+      "output": "release"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build-resources/favicon.ico" 
+    },
+    "mac": {
+      "category": "public.app-category.graphics-design",
+      "icon": "build-resources/icon.icns" 
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "build-resources/favicon-32x32.png" 
+    }
+  }
+}
