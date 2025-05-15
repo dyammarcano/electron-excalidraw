@@ -119,15 +119,27 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         RELEASE_VERSION: ${{ github.ref_name }} # ej. v1.0.0
 
-    # Añade más pasos 'Upload Release Assets' para otros artefactos (Windows, macOS) si los generas.
-    # Ejemplo para un .exe de Windows:
-    - name: Upload Release Assets (Windows)
-      if: success() && steps.create_release.outputs.upload_url
-      uses: actions/upload-release-asset@v1
+    - name: Create GitHub Release and Upload Artifacts
+      uses: softprops/action-gh-release@v2
+      if: success() # Only run if the build and package steps were successful
       with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./release/MiExcalidraw Setup ${{ github.ref_name }}.exe
-        asset_name: MiExcalidraw-Setup-${{ github.ref_name }}.exe
-        asset_content_type: application/vnd.microsoft.portable-executable
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # GITHUB_TOKEN is automatically used by this action
+        # The tag_name will be taken from the pushed tag (e.g., v1.0.1)
+        # The release name will also default to the tag name.
+        # You can customize release name, body, etc.
+        # name: My Custom Release Name ${{ github.ref_name }}
+        # body_path: CHANGELOG.md
+        # draft: false
+        # prerelease: contains(github.ref, '-beta') || contains(github.ref, '-alpha')
+        files: |
+          release/Excalidraw-*.AppImage
+          release/electron-excalidraw_*.deb
+          release/Excalidraw Setup *.exe
+          release/Excalidraw-*.dmg
+          release/Excalidraw-*.zip
+          # Add any other specific patterns if needed, e.g., for .rpm or other architectures
+          # These wildcards will match files like:
+          # Excalidraw-1.0.0.AppImage (or whatever version is in package.json)
+          # electron-excalidraw_1.0.0_amd64.deb
+          # Excalidraw Setup 1.0.0.exe
+          # Excalidraw-1.0.0.dmg
