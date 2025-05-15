@@ -1,0 +1,133 @@
+# .github/workflows/nodejs-ci-release.yml
+
+name: Node.js CI & Release
+
+on:
+  push:
+    branches: [ "main" ]
+    tags:
+      - 'v*.*.*' # Se activa con etiquetas como v1.0.0, v1.2.3, etc.
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build: # Tu job de CI existente
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
+    steps:
+    - uses: actions/checkout@v4
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    - name: Install Dependencies
+      run: npm ci
+    - name: Build (if present)
+      run: npm run build --if-present # Este script debería preparar los assets web de Excalidraw
+    - name: Run Tests
+      run: npm test
+
+  release:
+    name: Create Release & Upload Artifacts
+    if: startsWith(github.ref, 'refs/tags/v') # Solo se ejecuta si el evento es un push de una etiqueta 'v*.*.*'
+    needs: build # Opcional: si quieres que el job de build pase primero. Puedes quitarlo si el tag es la única señal.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Necesario para crear releases y subir artefactos
+
+    strategy:
+      matrix:
+        node-version: [20.x] # Usa una versión específica de Node.js para la release
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Necesario para que actions/create-release pueda generar changelogs basados en commits
+
+    - name: Set up Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Install Electron project dependencies
+      run: npm ci
+
+    - name: Build web assets (if needed)
+      # Si tu `npm run build` en el package.json del proyecto Electron
+      # ya se encarga de construir/copiar los assets de Excalidraw, puedes usarlo.
+      # Si no, necesitas añadir aquí los pasos para:
+      # 1. Clonar/acceder al repo de Excalidraw (si es separado).
+      # 2. Ejecutar `yarn build` en el monorepo de Excalidraw.
+      # 3. Copiar el contenido de `excalidraw-app/build/` a la carpeta de tu app Electron (ej. `app/`).
+      # Por ahora, asumiré que `npm run build --if-present` en tu proyecto Electron maneja esto
+      # o que los assets ya están en el repositorio del proyecto Electron.
+      run: npm run build --if-present
+
+    - name: Build Electron App with electron-builder
+      # Asegúrate de que tu package.json tenga un script "dist"
+      # que ejecute "electron-builder" con las configuraciones adecuadas
+      # para generar los artefactos (AppImage, deb, etc.) en una carpeta "release/"
+      run: npm run dist
+      env:
+        # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # electron-builder puede necesitarlo para publicar a GitHub Releases si está configurado para ello, pero usaremos una acción separada.
+
+    - name: Create GitHub Release
+      id: create_release
+      uses: softprops/action-gh-release@v2 # Una acción popular para crear releases
+      with:
+        # El cuerpo de la release se puede generar automáticamente a partir de los commits
+        # o puedes proporcionar un archivo de notas de la release.
+        # body_path: CHANGELOG.md # Opcional
+        draft: false
+        prerelease: false
+        # files: | # Los archivos se especificarán en el siguiente paso para mayor control
+        #   release/*.AppImage
+        #   release/*.deb
+        #   release/*.snap
+        #   release/*.exe
+        #   release/*.dmg
+        #   release/*.zip
+        #   release/*.tar.gz
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Este token es provisto por GitHub Actions
+
+    - name: Upload Release Assets (Linux)
+      if: success() && steps.create_release.outputs.upload_url # Solo si la release se creó y hay URL de subida
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./release/MiExcalidraw-${{ github.ref_name }}.AppImage # Asume que el nombre del archivo incluye la versión del tag
+        asset_name: MiExcalidraw-${{ github.ref_name }}.AppImage
+        asset_content_type: application/vnd.appimage
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload Release Assets (Debian Package)
+      if: success() && steps.create_release.outputs.upload_url
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./release/electron-excalidraw_${{ env.RELEASE_VERSION }}_amd64.deb # Necesitas extraer la versión del tag
+        asset_name: electron-excalidraw_${{ env.RELEASE_VERSION }}_amd64.deb
+        asset_content_type: application/vnd.debian.binary-package
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        RELEASE_VERSION: ${{ github.ref_name }} # ej. v1.0.0
+
+    # Añade más pasos 'Upload Release Assets' para otros artefactos (Windows, macOS) si los generas.
+    # Ejemplo para un .exe de Windows:
+    # - name: Upload Release Assets (Windows)
+    #   if: success() && steps.create_release.outputs.upload_url
+    #   uses: actions/upload-release-asset@v1
+    #   with:
+    #     upload_url: ${{ steps.create_release.outputs.upload_url }}
+    #     asset_path: ./release/MiExcalidraw Setup ${{ github.ref_name }}.exe
+    #     asset_name: MiExcalidraw-Setup-${{ github.ref_name }}.exe
+    #     asset_content_type: application/vnd.microsoft.portable-executable
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
